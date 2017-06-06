@@ -1,0 +1,116 @@
+---
+title: "Practical Machine Learning - Final Assignment"
+author: "Andrei Damsa"
+date: '2017 june 5 '
+output: html_document
+---
+## Introduction
+</br>
+
+The goal of this project is to predict the manner in which subjects did a weight lifting exercise.  They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+Sensors used in data gathering:
+
+- Belt
+- Arm
+- Dumbbell
+- Forearm
+
+
+Through the process we will follow four major steps:
+
+1. Data reading and tidying
+2. Variable selection 
+3. Model building
+4. Cross validation and expected out of sample error
+
+## I. Data reading
+</br>
+
+Pre-examination of the data revealed some miss-used strings which forced numeric variables to be considered as factors. To avoid this problem, we use the *na.strings* command to filter those cases.
+
+```{r, eval = FALSE}
+
+training <- read.csv("./data/pml-training.csv", header = TRUE, sep = ",", na.strings = c("#DIV/0!"))
+testing <- read.csv("./data/pml-testing.csv", header = TRUE, sep = ",", na.strings = c("#DIV/0!"))
+
+```
+
+## II. Variable selection
+</br>
+
+As one can see, some variables are still in the factor format, so we will transform them to numeric class. 
+
+```{r, eval = FALSE}
+for (i in 8:ncol(training)-1){
+  
+  training[, i] <- as.numeric(training[, i])
+  
+}
+
+for (i in 8:ncol(testing)-1){
+  
+  testing[, i] <- as.numeric(testing[, i])
+
+}
+
+```
+
+Further examination revealed a huge ammount of NA's in some of the columns. We remove those columns and continue our process using only the complete cases. There are other columns which are non-important in this case (user id, timestamps, etc.), we will remove them too.
+
+
+```{r, eval = FALSE}
+
+training_off <- names(training) %in% c("X", "user_name", "raw_timestamp_part_1",
+                                               "raw_timestamp_part_2", "cvtd_timestamp", 
+                                               "new_window", "num_window")
+training_select <- training[!training_off]
+training_clean <- training_select[ , colSums(is.na(training_select)) == 0]
+
+```
+
+For cross validation purposes we divide the training set into two subsets (train and test)
+
+```{r, eval = FALSE}
+training_sub <- createDataPartition(y = training_clean$classe, p = 0.7, list = FALSE)
+train_1 <- training_clean[training_sub, ]
+test_1 <- training_clean[-training_sub, ]
+
+```
+
+## III. Model building
+</br>
+
+In order to create a predictive model based on our data, we will use the random forrest classification method. Based on the size of the dataset, the function was executed in parallel processing. Without this technique, the analysis would take significantly higher ammount of time.
+
+
+```{r, eval = FALSE}
+
+rf <- foreach(ntree=rep(100, 5), .combine=combine, .multicombine=TRUE,
+              .packages='randomForest') %dopar% {
+                randomForest(classe ~., data = train_1, ntree=ntree)
+              }
+
+```
+
+## IV. Cross validation
+</br>
+
+Cross validation plays an important role in the assessment of the model. Before the model fit, we divided the data into train and test sets. After the model was created, we predict the *classe* variable in the test set. As an outcome, we can also specify the out of the sample error, which in this case will be the accuracy subtracted from 1.
+
+```{r, eval = FALSE}
+
+pred <- predict(rf, newdata=test_1)
+confusionMatrix(pred,test_1$classe)
+
+```
+
+According to the confusion matrix, the accuracy of the model is very high, around 99 %. Based on this value, the out of the sample error in the case of the test dataset will be around 1%.
+
+## Summary
+</br>
+
+The goal of the analysis was to predict different types of weight lifting methods using data gathered from body and dumbbell sensors. We used the random forrest classification method to predict the outcome variable. According to our results, we managed to fit a highly accurate model, with a low out of the sample error rate. 
+
+</br>
+</br>
